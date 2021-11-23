@@ -10,7 +10,7 @@ contains
 
   subroutine oas_definitions_init(bounds)
     use spmdMod      , only : masterproc
-    use clm_varpar   , only : nlevsoi
+    use clm_varpar   , only : nlevsoi, nlevgrnd
     use decompMod    , only : bounds_type
     use oas_vardefMod
 
@@ -42,6 +42,8 @@ contains
     var_nodims(2) = nlevsoi         ! number of fields in a bundle
 
     call oasis_def_var(oas_et_loss_id, "ECLM_ET", grid_id, var_nodims, OASIS_Out, var_shape, OASIS_Real, ierror) 
+    
+    var_nodims(2) = nlevgrnd         ! number of fields in a bundle
     call oasis_def_var(oas_sat_id, "ECLM_SAT", grid_id, var_nodims, OASIS_In, var_shape, OASIS_Real, ierror)
     call oasis_def_var(oas_psi_id, "ECLM_PSI", grid_id, var_nodims, OASIS_In, var_shape, OASIS_Real, ierror)
 
