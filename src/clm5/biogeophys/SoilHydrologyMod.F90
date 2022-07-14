@@ -259,16 +259,16 @@ contains
 
          ! clm3.5/bld/usr.src/SoilHydrologyMod.F90
          ! if COUP_OAS_PFL
-         qflx_surf(c) = 0._r8
+         !qflx_surf(c) = 0._r8
 
          !else
          ! assume qinmax large relative to qflx_top_soil in control
-         !if (origflag == 1) then
-         !   qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
-         !else
-         !   ! only send fast runoff directly to streams
-         !   qflx_surf(c) =   fsat(c) * qflx_top_soil(c)
-         !endif
+         if (origflag == 1) then
+           qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
+         else
+           ! only send fast runoff directly to streams
+           qflx_surf(c) =   fsat(c) * qflx_top_soil(c)
+         endif
       end do
 
       ! Determine water in excess of ponding limit for urban roof and impervious road.
@@ -418,7 +418,8 @@ contains
           ice              =>    soilhydrology_inst%ice_col          , & ! Input:  [real(r8) (:,:) ]  ice len in each VIC layers(ice, mm)              
           i_0              =>    soilhydrology_inst%i_0_col          , & ! Input:  [real(r8) (:)   ]  column average soil moisture in top VIC layers (mm)
           h2osfcflag       =>    soilhydrology_inst%h2osfcflag       , & ! Input:  logical
-          icefrac          =>    soilhydrology_inst%icefrac_col        & ! Output: [real(r8) (:,:) ]  fraction of ice                                 
+          icefrac          =>    soilhydrology_inst%icefrac_col      , & ! Output: [real(r8) (:,:) ]  fraction of ice
+          qflx_parflow     => waterflux_inst%qflx_parflow_col          & ! source/sink flux passed to ParFlow for each soil layer (COUP_OAS_PFL)
           )
 
        dtime = get_step_size()
@@ -456,6 +457,14 @@ contains
              !2. remove evaporation (snow treated in SnowHydrology)
              qflx_in_soil(c) = qflx_in_soil(c) - (1.0_r8 - fsno - frac_h2osfc(c))*qflx_evap(c)
              qflx_in_h2osfc(c) =  qflx_in_h2osfc(c)  - frac_h2osfc(c) * qflx_ev_h2osfc(c)
+
+             
+             
+             ! COUP_OAS_PFL
+             ! Below code produces parflow error: 
+             ! problem_phase_rel_perm.c:273: VanGLookupSpline: Assertion `pressure_head >= 0' failed.
+             ! qflx_parflow(c,1) = (qflx_in_soil(c) + qflx_in_h2osfc(c)) * 3.6_r8 / dz(c,1)
+             ! qflx_parflow(c,1) = (qflx_in_soil(c) + qflx_in_h2osfc(c) + (qflx_surf(c) - qflx_evap_grnd(c))) * 3.6_r8 / dz(c,1)
 
              !3. determine maximum infiltration rate
              if (use_vichydro) then
@@ -556,6 +565,8 @@ contains
              qflx_h2osfc_surf(c) = 0._r8
           endif
 
+          ! COUP_OAS_PFL
+          !qflx_parflow(c,1) = qflx_infl(c) * 3.6_r8 / dz(c,1)
        enddo
 
        ! No infiltration for impervious urban surfaces

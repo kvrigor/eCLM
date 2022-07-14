@@ -411,6 +411,11 @@ contains
          waterflux_inst%qflx_parflow_col (bounds%begc:bounds%endc, :), &
          lnd2atm_inst%qflx_parflow_grc   (bounds%begg:bounds%endg, :), &
          c2l_scale_type= 'unity',  l2g_scale_type='unity' )
+
+!     call c2g( bounds, nlevgrnd, &
+!          waterstate_inst%ice_impedance_col (bounds%begc:bounds%endc, :), &
+!          lnd2atm_inst%qflx_ice_imped_grc   (bounds%begg:bounds%endg, :), &
+!          c2l_scale_type= 'unity',  l2g_scale_type='unity' )
 !TODO: Verify questionable factor 3.6/dz(g,j) !
 !     do j = 1, nlevsoi
 !        do g = bounds%begg, bounds%endg    

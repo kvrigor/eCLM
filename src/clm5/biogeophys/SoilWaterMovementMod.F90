@@ -46,6 +46,7 @@ module SoilWaterMovementMod
   integer, parameter :: moisture_form = 1
   integer, parameter :: mixed_form = 2
   integer, parameter :: head_form = 3
+  integer, parameter :: parflow = 4
 
   ! Boundary conditions
   integer, parameter :: bc_head  = 0
@@ -296,6 +297,13 @@ contains
 !!$       call soilwater_head_form(bounds, num_hydrologyc, filter_hydrologyc, &
 !!$            num_urbanc, filter_urbanc, soilhydrology_inst, soilstate_inst, &
 !!$            waterflux_inst, waterstate_inst, temperature_inst)
+
+    case (parflow)
+
+       call soilwater_parflow(bounds, num_hydrologyc, filter_hydrologyc, &
+            num_urbanc, filter_urbanc, soilhydrology_inst, soilstate_inst, &
+            waterflux_inst, waterstate_inst, temperature_inst, &
+            canopystate_inst, energyflux_inst, soil_water_retention_curve)
 
     case default
 
@@ -1156,8 +1164,10 @@ contains
          smp_l             =>    soilstate_inst%smp_l_col           , & ! Input:  [real(r8) (:,:) ]  soil matrix potential [mm]                      
          hk_l              =>    soilstate_inst%hk_l_col            , & ! Input:  [real(r8) (:,:) ]  hydraulic conductivity (mm/s)                   
          h2osoi_ice        =>    waterstate_inst%h2osoi_ice_col     , & ! Input:  [real(r8) (:,:) ]  ice water (kg/m2)                               
-         h2osoi_liq        =>    waterstate_inst%h2osoi_liq_col     , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)                            
-         qflx_rootsoi_col  =>    waterflux_inst%qflx_rootsoi_col      &
+         h2osoi_liq        =>    waterstate_inst%h2osoi_liq_col     , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)
+         qflx_rootsoi_col  =>    waterflux_inst%qflx_rootsoi_col    , &
+         pfl_psi           =>    waterstate_inst%pfl_psi_col        , & ! Input:  [real(r8) (:,:) ]  COUP_OAS_PFL
+         pfl_h2osoi_liq    =>    waterstate_inst%pfl_h2osoi_liq_col   & ! Input:  [real(r8) (:,:) ]  ParFlow soil water
          )  ! end associate statement
 
       ! Get time step
@@ -1204,6 +1214,13 @@ contains
                  dhkdw(c,1:nlayers), dsmpdw(c,1:nlayers), &
                  imped(c,1:nlayers))
 
+            ! COUP_OAS_PFL
+            ! do j = 1, nlayers
+            !    if (pfl_psi(c,j) <= 0) then
+            !       smp_l(c,j) = pfl_psi(c,j)
+            !    end if
+            ! end do
+            
             ! Soil moisture fluxes and their derivatives
             call compute_moisture_fluxes_and_derivs(c, nlayers, &
                  soilhydrology_inst, soilstate_inst, &
@@ -1348,6 +1365,8 @@ contains
 
             ! Renew the mass of liquid water
             do j = 1, nlayers
+               !h2osoi_liq_sw(c,j) = dwat(c,j) * (m_to_mm * dz(c,j))
+               !h2osoi_liq(c,j) = h2osoi_liq(c,j) + h2osoi_liq_sw(c,j)
                h2osoi_liq(c,j) = h2osoi_liq(c,j) + dwat(c,j) * (m_to_mm * dz(c,j))
             end do
 
@@ -1399,6 +1418,10 @@ contains
             endif
          end do
 
+         ! COUP_OAS_PFL
+         ! do j = 1, nlayers
+         !    h2osoi_liq(c,j) = pfl_h2osoi_liq(c,j)
+         ! end do
       end do  ! spatial loop
 
 
@@ -1423,6 +1446,107 @@ contains
 
 !#8
 !-----------------------------------------------------------------------
+
+  subroutine soilwater_parflow(bounds, num_hydrologyc, &
+      filter_hydrologyc, num_urbanc, filter_urbanc, soilhydrology_inst, &
+      soilstate_inst, waterflux_inst, waterstate_inst, temperature_inst, &
+      canopystate_inst, energyflux_inst, soil_water_retention_curve)
+
+      use shr_kind_mod         , only : r8 => shr_kind_r8
+      use shr_const_mod        , only : SHR_CONST_TKFRZ, SHR_CONST_LATICE,SHR_CONST_G
+      use abortutils           , only : endrun
+      use decompMod            , only : bounds_type
+      use clm_varctl           , only : iulog, use_hydrstress
+      use clm_varcon           , only : denh2o, denice, e_ice
+      use clm_varpar           , only : nlevsoi, nlevgrnd
+      use clm_time_manager     , only : get_step_size, get_nstep
+      use SoilStateType        , only : soilstate_type
+      use SoilHydrologyType    , only : soilhydrology_type
+      use TemperatureType      , only : temperature_type
+      use WaterFluxType        , only : waterflux_type
+      use WaterStateType       , only : waterstate_type
+      use EnergyFluxType       , only : energyflux_type
+      use CanopyStateType      , only : canopystate_type
+      use SoilWaterRetentionCurveMod , only : soil_water_retention_curve_type
+      use PatchType            , only : patch
+      use ColumnType           , only : col
+
+      implicit none
+      type(bounds_type)       , intent(in)    :: bounds               ! bounds
+      integer                 , intent(in)    :: num_hydrologyc       ! number of column soil points in column filter
+      integer                 , intent(in)    :: filter_hydrologyc(:) ! column filter for soil points
+      integer                 , intent(in)    :: num_urbanc           ! number of column urban points in column filter
+      integer                 , intent(in)    :: filter_urbanc(:)     ! column filter for urban points
+      type(soilhydrology_type), intent(inout) :: soilhydrology_inst
+      type(soilstate_type)    , intent(inout) :: soilstate_inst
+      type(waterflux_type)    , intent(inout) :: waterflux_inst
+      type(waterstate_type)   , intent(inout) :: waterstate_inst
+      type(temperature_type)  , intent(in)    :: temperature_inst
+      type(canopystate_type)  , intent(inout) :: canopystate_inst
+      type(energyflux_type)   , intent(in)    :: energyflux_inst
+      class(soil_water_retention_curve_type), intent(in) :: soil_water_retention_curve
+
+      integer  :: c,j,fc                    ! indices
+      integer  :: nlayers
+
+      associate(&
+         nbedrock          =>    col%nbedrock                       , & ! Input:  [real(r8) (:,:) ]  depth to bedrock (m)                                 
+         z                 =>    col%z                              , & ! Input:  [real(r8) (:,:) ]  layer depth (m)                                 
+         zi                =>    col%zi                             , & ! Input:  [real(r8) (:,:) ]  interface level below a "z" level (m)           
+         dz                =>    col%dz                             , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)                             
+
+         nsubsteps         =>    soilhydrology_inst%num_substeps_col, & ! Input:  [real(r8) (:)   ]  adaptive timestep counter
+
+         qcharge           =>    soilhydrology_inst%qcharge_col     , & ! Input:  [real(r8) (:)   ]  aquifer recharge rate (mm/s)                      
+         zwt               =>    soilhydrology_inst%zwt_col         , & ! Input:  [real(r8) (:)   ]  water table depth (m)                             
+         icefrac           =>    soilhydrology_inst%icefrac_col     , & ! Input:  [real(r8) (:,:) ]  fraction of ice                                 
+         
+         smp_l             =>    soilstate_inst%smp_l_col           , & ! Input:  [real(r8) (:,:) ]  soil matrix potential [mm]                      
+         hk_l              =>    soilstate_inst%hk_l_col            , & ! Input:  [real(r8) (:,:) ]  hydraulic conductivity (mm/s)                   
+         h2osoi_ice        =>    waterstate_inst%h2osoi_ice_col     , & ! Input:  [real(r8) (:,:) ]  ice water (kg/m2)                               
+         h2osoi_liq        =>    waterstate_inst%h2osoi_liq_col     , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)
+         pfl_psi           =>    waterstate_inst%pfl_psi_col          & ! Input:  [real(r8) (:,:) ]  COUP_OAS_PFL
+         !pfl_psi           =>    waterstate_inst%pfl_psi_col        , & ! Input:  [real(r8) (:,:) ]  COUP_OAS_PFL
+         !pfl_h2osoi_liq    =>    waterstate_inst%pfl_h2osoi_liq_col , & ! Input:  [real(r8) (:,:) ]  ParFlow soil water
+         !imped             =>    waterstate_inst%ice_impedance_col    & ! Input:  [real(r8) (:,:) ]  fraction of ice                                 
+         )  ! end associate statement
+
+      ! main spatial loop
+         ! COUP_OAS_PFL
+         !imped  = 0._r8
+         do fc = 1, num_hydrologyc
+            c = filter_hydrologyc(fc)
+   
+            ! set number of layers over which to solve soilwater movement
+            ! nlayers = nbedrock(c) ! variable bedrock depth
+
+            do j = 1, nlevgrnd
+               if (pfl_psi(c,j) <= 0) then
+                  smp_l(c,j) = pfl_psi(c,j)
+               end if
+               ! h2osoi_liq(c,j) = pfl_h2osoi_liq(c,j)
+               ! if(j==nlevgrnd)then
+               !    call IceImpedance(icefrac(c,j), e_ice, imped(c,j) )
+               !   else
+               !    call IceImpedance(0.5_r8*(icefrac(c,j) + icefrac(c,j+1)), e_ice, imped(c,j) )
+               ! endif
+            end do
+         end do
+
+         !h2osoi_liq_sw(c,j) = pfl_dVSW(c,j) * (m_to_mm * dz(c,j))
+         !h2osoi_liq(c,j) = h2osoi_liq(c,j) + h2osoi_liq_sw(c,j)
+         ! do j = 1, nlevgrnd
+         !    do fc = 1, num_hydrologyc
+         !       c = filter_hydrologyc(fc)
+         !       if (pfl_psi(c,j) <= 0) then
+         !          smp_l(c,j) = pfl_psi(c,j)
+         !       end if
+         !    end do
+         ! end do
+      end associate
+   end subroutine soilwater_parflow
+
+
    subroutine compute_hydraulic_properties(c, nlayers, &
         soilhydrology_inst, soilstate_inst, &
         soil_water_retention_curve, vwc_liq, hk ,smp, &
@@ -1488,7 +1612,7 @@ contains
       
          ! Hydraulic conductivity and soil matric potential and their derivatives
 
-         ! compute the relative saturation at each layer first b/c
+         ! compute the relative satusmp_lration at each layer first b/c
          ! it is used later in calculation of s1
          do j = 1, nlayers
             s2(j) = vwc_liq(j)/watsat(c,j)

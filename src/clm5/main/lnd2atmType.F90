@@ -71,6 +71,7 @@ module lnd2atmType
      real(r8), pointer :: qflx_rofice_grc         (:)   => null() ! rof ice forcing
      real(r8), pointer :: qflx_liq_from_ice_col   (:)   => null() ! liquid runoff from converted ice runoff
      real(r8), pointer :: qflx_parflow_grc        (:,:) => null() ! source/sink flux per soil layer sent to ParFlow [mm H2O/m^2/s] [- out from root]
+     real(r8), pointer :: qflx_ice_imped_grc      (:,:) => null() ! ice impedance factor
      real(r8), pointer :: qirrig_grc              (:)   => null() ! irrigation flux
 
    contains
@@ -178,6 +179,7 @@ contains
     allocate(this%qflx_rofice_grc      (begg:endg))          ; this%qflx_rofice_grc      (:)   =ival
     allocate(this%qflx_liq_from_ice_col(begc:endc))          ; this%qflx_liq_from_ice_col(:)   =ival
     allocate(this%qflx_parflow_grc     (begg:endg,1:nlevsoi)); this%qflx_parflow_grc     (:,:) =ival
+    allocate(this%qflx_ice_imped_grc   (begg:endg,1:nlevgrnd)); this%qflx_ice_imped_grc     (:,:) =ival
     allocate(this%qirrig_grc           (begg:endg))          ; this%qirrig_grc           (:)   =ival
 
     if (shr_megan_mechcomps_n>0) then
@@ -327,10 +329,14 @@ contains
     end if
 
     this%qflx_parflow_grc(begg:endg, :) = 0._r8
-    call hist_addfld2d (fname='QPARFLOW_TO_OASIS', units='mm H2O/m2/s', type2d='levsoi', &
+    call hist_addfld2d (fname='QPARFLOW_G', units='mm H2O/m2/s', type2d='levsoi', &
          avgflag='A', long_name='source/sink flux per soil layer sent to ParFlow', &
          ptr_lnd=this%qflx_parflow_grc, default='inactive')
 
+    this%qflx_ice_imped_grc(begg:endg, :) = 0._r8
+    call hist_addfld2d (fname='ICE_IMPEDANCE_G', units='', type2d='levgrnd', &
+         avgflag='A', long_name='ice impedance factor per soil layer sent to ParFlow', &
+         ptr_lnd=this%qflx_ice_imped_grc, default='inactive')
   end subroutine InitHistory
 
 end module lnd2atmType

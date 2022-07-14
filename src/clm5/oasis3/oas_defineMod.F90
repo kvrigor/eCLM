@@ -72,13 +72,15 @@ contains
     ! -----------------------------------------------------------------
     var_nodims(1) = 1         ! unused
     var_nodims(2) = nlevsoi   ! number of fields in a bundle
-
-    call oasis_def_var(oas_et_loss_id, "ECLM_ET", grid_id, var_nodims, OASIS_Out, OASIS_Real, ierror) 
     
-    var_nodims(2) = nlevgrnd         ! number of fields in a bundle
-    call oasis_def_var(oas_sat_id, "ECLM_SAT", grid_id, var_nodims, OASIS_In, OASIS_Real, ierror)
-    call oasis_def_var(oas_psi_id, "ECLM_PSI", grid_id, var_nodims, OASIS_In, OASIS_Real, ierror)
+    call oasis_def_var(oas_et_loss_id, "ECLM_ET", grid_id, var_nodims, OASIS_Out, OASIS_Real, ierror)
 
+    var_nodims(2) = nlevgrnd         ! number of fields in a bundle
+    !call oasis_def_var(oas_ice_imped_id, "ECLM_ICE_IMPEDANCE", grid_id, var_nodims, OASIS_Out, OASIS_Real, ierror)
+    !call oasis_def_var(oas_h2osoi_liq_id, "ECLM_H2OSOI_LIQ", grid_id, var_nodims, OASIS_In, OASIS_Real, ierror)
+    call oasis_def_var(oas_psi_id, "ECLM_PSI", grid_id, var_nodims, OASIS_In, OASIS_Real, ierror)
+    call oasis_def_var(oas_sat_id, "ECLM_SAT", grid_id, var_nodims, OASIS_In, OASIS_Real, ierror)
+  
     ! End definition phase
     call oasis_enddef(ierror)
   end subroutine oas_definitions_init

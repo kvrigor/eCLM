@@ -34,7 +34,7 @@ module WaterstateType
 
      real(r8), pointer :: h2osno_col             (:)   ! col snow water (mm H2O)
      real(r8), pointer :: h2osno_old_col         (:)   ! col snow mass for previous time step (kg/m2) (new)
-     real(r8), pointer :: h2osoi_liq_col         (:,:) ! col liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
+     real(r8), pointer :: h2osoi_liq_col         (:,:) ! col liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
      real(r8), pointer :: h2osoi_ice_col         (:,:) ! col ice lens (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
      real(r8), pointer :: h2osoi_liq_tot_col     (:)   ! vertically summed col liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
      real(r8), pointer :: h2osoi_ice_tot_col     (:)   ! vertically summed col ice lens (kg/m2) (new) (-nlevsno+1:nlevgrnd)    
@@ -45,6 +45,8 @@ module WaterstateType
      real(r8), pointer :: h2osoi_liqvol_col      (:,:) ! col volumetric liquid water content (v/v)
      real(r8), pointer :: h2ocan_patch           (:)   ! patch canopy water (mm H2O)
      real(r8), pointer :: h2osfc_col             (:)   ! col surface water (mm H2O)
+     real(r8), pointer :: zwliq1                 (:)   ! total liquid water in snow COUP_OAS_PFL
+     !real(r8), pointer :: ice_impedance_col      (:,:)   ! col hydraulic conductivity reduction due to the presence of ice in pore space COUP_OAS_PFL
      real(r8), pointer :: snocan_patch           (:)   ! patch canopy snow water (mm H2O)
      real(r8), pointer :: liqcan_patch           (:)   ! patch canopy liquid water (mm H2O)
      real(r8), pointer :: snounload_patch        (:)   ! Canopy snow unloading (mm H2O)
@@ -55,6 +57,7 @@ module WaterstateType
      real(r8), pointer :: ice2_grc               (:)   ! grc post land cover change total ice content
      real(r8), pointer :: tws_grc                (:)   ! grc total water storage (mm H2O)
      real(r8), pointer :: pfl_psi_col            (:,:) ! ParFlow pressure head   COUP_OAS_PFL
+     real(r8), pointer :: pfl_h2osoi_liq_col     (:,:) ! ParFlow liquid water (kg/m2)   COUP_OAS_PFL
      real(r8), pointer :: total_plant_stored_h2o_col(:) ! col water that is bound in plants, including roots, sapwood, leaves, etc
                                                         ! in most cases, the vegetation scheme does not have a dynamic
                                                         ! water storage in plants, and thus 0.0 is a suitable for the trivial case.
@@ -190,7 +193,8 @@ contains
     allocate(this%h2osoi_liqvol_col      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liqvol_col      (:,:) = nan
     allocate(this%h2osoi_ice_col         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice_col         (:,:) = nan
     allocate(this%h2osoi_liq_col         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liq_col         (:,:) = nan
-    allocate(this%pfl_psi_col            (begc:endc,1:nlevgrnd))           ; this%pfl_psi_col            (:,:) = nan
+    allocate(this%pfl_psi_col            (begc:endc,1:nlevgrnd))          ; this%pfl_psi_col            (:,:) = nan
+    allocate(this%pfl_h2osoi_liq_col     (begc:endc,1:nlevgrnd))          ; this%pfl_h2osoi_liq_col     (:,:) = nan
     allocate(this%h2osoi_ice_tot_col     (begc:endc))                     ; this%h2osoi_ice_tot_col     (:)   = nan
     allocate(this%h2osoi_liq_tot_col     (begc:endc))                     ; this%h2osoi_liq_tot_col     (:)   = nan
     allocate(this%h2ocan_patch           (begp:endp))                     ; this%h2ocan_patch           (:)   = nan  
@@ -198,6 +202,8 @@ contains
     allocate(this%liqcan_patch           (begp:endp))                     ; this%liqcan_patch           (:)   = nan  
     allocate(this%snounload_patch        (begp:endp))                     ; this%snounload_patch        (:)   = nan  
     allocate(this%h2osfc_col             (begc:endc))                     ; this%h2osfc_col             (:)   = nan   
+    allocate(this%zwliq1                 (begc:endc))                     ; this%zwliq1                 (:)   = nan   
+    !allocate(this%ice_impedance_col      (begc:endc,nlevgrnd))            ; this%ice_impedance_col      (:,:) = nan
     allocate(this%swe_old_col            (begc:endc,-nlevsno+1:0))        ; this%swe_old_col            (:,:) = nan   
     allocate(this%liq1_grc               (begg:endg))                     ; this%liq1_grc               (:)   = nan
     allocate(this%liq2_grc               (begg:endg))                     ; this%liq2_grc               (:)   = nan
@@ -295,6 +301,11 @@ contains
               avgflag='A', long_name='ParFlow pressure head', &
               ptr_col=this%pfl_psi_col, l2g_scale_type='veg')
 
+   data2dptr => this%pfl_h2osoi_liq_col(begc:endc,1:nlevgrnd)
+   call hist_addfld2d (fname='PFL_SOILLIQ',  units='', type2d='levgrnd', &
+               avgflag='A', long_name='ParFlow soil liquid', &
+               ptr_col=this%pfl_h2osoi_liq_col, l2g_scale_type='veg')
+
     if ( use_soil_moisture_streams )then
        data2dptr => this%h2osoi_vol_prs_grc(begg:endg,1:nlevsoi)
        call hist_addfld2d (fname='H2OSOI_PRESCRIBED_GRC',  units='mm3/mm3', type2d='levsoi', &
@@ -385,6 +396,16 @@ contains
     call hist_addfld1d (fname='H2OSFC',  units='mm',  &
          avgflag='A', long_name='surface water depth', &
          ptr_col=this%h2osfc_col)
+
+   this%zwliq1(begc:endc) = spval
+   call hist_addfld1d (fname='ZWLIQ',  units='mm',  &
+         avgflag='A', long_name='total liquid water in snow', &
+         ptr_col=this%zwliq1)
+
+   ! this%ice_impedance_col(begc:endc, 1:nlevgrnd) = spval
+   ! call hist_addfld2d (fname='ICE_IMPEDANCE',  units='', type2d='levgrnd', &
+   !       avgflag='A', long_name='Ice impedance factor', &
+   !       ptr_col=this%ice_impedance_col, l2g_scale_type='veg')
 
     this%tws_grc(begg:endg) = spval
     call hist_addfld1d (fname='TWS',  units='mm',  &
@@ -756,6 +777,7 @@ contains
       this%pfl_psi_col(bounds%begc:bounds%endc,            1:) = -1000._r8
       this%h2osoi_vol_prs_grc(bounds%begg:bounds%endg,     1:) = spval
       this%h2osoi_liq_col(bounds%begc:bounds%endc,-nlevsno+1:) = spval
+      this%pfl_h2osoi_liq_col(bounds%begc:bounds%endc,     1:) = spval
       this%h2osoi_ice_col(bounds%begc:bounds%endc,-nlevsno+1:) = spval
       do c = bounds%begc,bounds%endc
          l = col%landunit(c)

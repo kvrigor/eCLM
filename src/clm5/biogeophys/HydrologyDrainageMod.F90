@@ -227,6 +227,8 @@ contains
       do j = 1, nlevsoi
          do fc = 1, num_hydrologyc
             c = filter_hydrologyc(fc)
+            ! qflx_rootsoi = root and soil water exchange [mm H2O/s] [+ into root]
+            !qflx_parflow(c,j) = -qflx_rootsoi(c,j) * 3.6_r8 / dz(c,j)
             if (j == 1) then
                ! From SoilWaterPlantSinkMod:
                ! qflx_rootsoi_col(c,j) = rootr_col(c,j)*qflx_tran_veg_col(c)

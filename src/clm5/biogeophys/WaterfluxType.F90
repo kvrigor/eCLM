@@ -6,7 +6,7 @@ module WaterfluxType
   ! !USES:
   use shr_kind_mod   , only: r8 => shr_kind_r8
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-  use clm_varpar     , only : nlevsno, nlevsoi
+  use clm_varpar     , only : nlevsno, nlevsoi, nlevgrnd
   use clm_varcon     , only : spval
   use decompMod      , only : bounds_type
   use LandunitType   , only : lun                
@@ -421,7 +421,7 @@ contains
          avgflag='A', long_name='water flux from soil to root in each soil-layer', &
          ptr_col=this%qflx_rootsoi_col, set_spec=spval, l2g_scale_type='veg', default='inactive')
 
-     this%qflx_parflow_col(begc:endc,:) = spval
+    this%qflx_parflow_col(begc:endc,:) = spval
     call hist_addfld2d (fname='QPARFLOW',  units='mm/s', type2d='levsoi', &
          avgflag='A', long_name='Water fluxes per soil layer sent to Parflow', &
          ptr_col=this%qflx_parflow_col, set_spec=spval, l2g_scale_type='veg', default='inactive')

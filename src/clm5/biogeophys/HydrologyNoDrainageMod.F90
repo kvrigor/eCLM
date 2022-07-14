@@ -202,9 +202,9 @@ contains
       
       ! -- clm3.5/src/biogeophys/SoilHydrologyMod.F90
       ! if not COUP_OAS_PFL
-      !call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
-      !     soilhydrology_inst, soilstate_inst, waterflux_inst, waterstate_inst, temperature_inst, &
-      !     canopystate_inst, energyflux_inst, soil_water_retention_curve)
+       call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
+           soilhydrology_inst, soilstate_inst, waterflux_inst, waterstate_inst, temperature_inst, &
+           canopystate_inst, energyflux_inst, soil_water_retention_curve)
       ! end if
 
       if (use_vichydro) then
@@ -476,17 +476,18 @@ contains
       ! ZMS: Note, this form, which seems to be the same as used in SoilWater, DOES NOT distinguish between
       ! ice and water volume, in contrast to the soilpsi calculation above. It won't be used in ch4Mod if
       ! t_soisno <= tfrz, though.
-      do j = 1, nlevgrnd
-         do fc = 1, num_hydrologyc
-            c = filter_hydrologyc(fc)
+      ! COUP_OAS_PFL
+      ! do j = 1, nlevgrnd
+      !    do fc = 1, num_hydrologyc
+      !       c = filter_hydrologyc(fc)
+       
+      !       s_node = max(h2osoi_vol(c,j)/watsat(c,j), 0.01_r8)
+      !       s_node = min(1.0_r8, s_node)
 
-            s_node = max(h2osoi_vol(c,j)/watsat(c,j), 0.01_r8)
-            s_node = min(1.0_r8, s_node)
-
-            smp_l(c,j) = -sucsat(c,j)*s_node**(-bsw(c,j))
-            smp_l(c,j) = max(smpmin(c), smp_l(c,j))
-         end do
-      end do
+      !       smp_l(c,j) = -sucsat(c,j)*s_node**(-bsw(c,j))
+      !       smp_l(c,j) = max(smpmin(c), smp_l(c,j))
+      !    end do
+      ! end do
 
  !     if (use_cn) then
          ! Available soil water up to a depth of 0.05 m.

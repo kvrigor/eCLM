@@ -28,7 +28,7 @@ Module SoilHydrologyType
      real(r8), pointer :: wa_col            (:)     ! col water in the unconfined aquifer (mm)
      real(r8), pointer :: qcharge_col       (:)     ! col aquifer recharge rate (mm/s) 
      real(r8), pointer :: fracice_col       (:,:)   ! col fractional impermeability (-)
-     real(r8), pointer :: icefrac_col       (:,:)   ! col fraction of ice       
+     real(r8), pointer :: icefrac_col       (:,:)   ! col fraction of ice
      real(r8), pointer :: fcov_col          (:)     ! col fractional impermeable area
      real(r8), pointer :: fsat_col          (:)     ! col fractional area with water table at surface
      real(r8), pointer :: h2osfc_thresh_col (:)     ! col level at which h2osfc "percolates"   (time constant)
@@ -149,7 +149,7 @@ contains
   subroutine InitHistory(this, bounds)
     !
     ! !USES:
-    use histFileMod    , only : hist_addfld1d
+    use histFileMod    , only : hist_addfld1d, hist_addfld2d
     !
     ! !ARGUMENTS:
     class(soilhydrology_type) :: this
@@ -203,7 +203,6 @@ contains
     call hist_addfld1d (fname='ZWT_PERCH',  units='m',  &
          avgflag='A', long_name='perched water table depth (vegetated landunits only)', &
          ptr_col=this%zwt_perched_col, l2g_scale_type='veg')
-
   end subroutine InitHistory
 
   !-----------------------------------------------------------------------

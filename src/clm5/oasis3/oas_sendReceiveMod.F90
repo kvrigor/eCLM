@@ -2,7 +2,7 @@ module oas_sendReceiveMod
   use shr_kind_mod     , only: r8 => shr_kind_r8
   use clm_time_manager , only: get_nstep, get_step_size
   use decompMod        , only: bounds_type
-  use clm_varpar       , only: nlevgrnd
+  use clm_varpar       , only: nlevgrnd, nlevsoi
   use clm_varctl       , only: iulog
   use oas_vardefMod
   use mod_oasis
@@ -30,6 +30,7 @@ contains
 
     call oasis_get(oas_psi_id, seconds_elapsed, atm2lnd_inst%parflow_psi_grc, info)
     call oasis_get(oas_sat_id, seconds_elapsed, buffer, info)
+    !call oasis_get(oas_h2osoi_liq_id, seconds_elapsed, atm2lnd_inst%parflow_h2osoi_liq_grc, info)
 
   end subroutine oas_receive
 
@@ -45,6 +46,7 @@ contains
     integer                           :: info
     
     call oasis_put(oas_et_loss_id, seconds_elapsed, lnd2atm_inst%qflx_parflow_grc, info)
+    !call oasis_put(oas_ice_imped_id, seconds_elapsed, lnd2atm_inst%qflx_ice_imped_grc, info)
     
   end subroutine oas_send
 
